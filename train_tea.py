@@ -21,7 +21,7 @@ DEFAULT_RADIUS = 0.034
 DEFAULT_HEIGHT = 0.09
 DEFAULT_RHO = 2000
 DEFAULT_FRICTION = 0.5
-DEFAULT_STARTING_X = 0.65
+DEFAULT_STARTING_X = 0.65 
 
 
 def _normalize_action(action):
@@ -102,7 +102,8 @@ class GenesisGym(gymnasium.Env):
 
         BOTTLE_RADIUS = self.args['radius']
         BOTTLE_HEIGHT = self.args['height']
-        BOX_WIDTH, BOX_HEIGHT = 0.75, 0.14
+        BOX_WIDTH, BOX_HEIGHT = 0.75, 0.14 
+        MUG_RADIUS, MUG_HEIGHT = 0.034, 0.03
 
         self.box_pos = (0.78, -BOX_WIDTH / 4, 0.02)
         self.box = scene.add_entity(
@@ -121,7 +122,7 @@ class GenesisGym(gymnasium.Env):
             lookat=(0.6, 0, 0.25),
             # lookat=(0.5, 0, 0.5),
             # fov=30,
-            fov=70,
+            fov=40,
             GUI=True,
         )
 
@@ -140,24 +141,37 @@ class GenesisGym(gymnasium.Env):
 
 
         # TODO: make the bottle slightly deformable
-        self.bottle = bottle = scene.add_entity(
-            material=gs.materials.Rigid(rho=self.args['rho'],
-                                        friction=self.args['friction']),
-            morph=gs.morphs.Cylinder(
-                pos=POSITION_0,
-                radius=BOTTLE_RADIUS,
-                height=BOTTLE_HEIGHT,
-            ),
-        )
+        # self.bottle = bottle = scene.add_entity(
+        #     material=gs.materials.Rigid(rho=self.args['rho'],
+        #                                 friction=self.args['friction']),
+        #     morph=gs.morphs.Cylinder(
+        #         pos=POSITION_0,
+        #         radius=BOTTLE_RADIUS,
+        #         height=BOTTLE_HEIGHT,
+        #     ),
+        # )
 
         self.goal_bottle = goal_bottle = scene.add_entity(
             material=gs.materials.Rigid(rho=self.args['rho'],
                                     friction=2.0),
             morph=gs.morphs.Cylinder(
-                pos=STATIC_BOTTLE_POSITION,
+                # pos=STATIC_BOTTLE_POSITION,
+                pos=(1,1,1),
                 radius=BOTTLE_RADIUS,
                 height=BOTTLE_HEIGHT,
             ),
+        )
+
+# STATIC_BOTTLE_POSITION = torch.tensor((0.65, -0.225, 0.17))
+        self.mug = mug = scene.add_entity(
+            gs.morphs.URDF(
+                file=str(pl.Path(__file__).parent / 'mug.urdf'),
+                fixed=True,
+                convexify=True,
+                pos=STATIC_BOTTLE_POSITION, # raise to account for table mount
+            ),
+            material=gs.materials.Rigid(friction=1.0),
+            vis_mode="collision"
         )
 
 
@@ -203,8 +217,11 @@ class GenesisGym(gymnasium.Env):
             rand_idx = random.randint(0,2)
             bottle_pos = [POSITION_0, POSITION_1, POSITION_2][rand_idx]
 
-        self.bottle.set_pos(bottle_pos); self.bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
-        self.goal_bottle.set_pos(STATIC_BOTTLE_POSITION); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
+        # self.bottle.set_pos(bottle_pos); self.bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
+        # self.mug.set_pos(bottle_pos); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
+        # self.goal_bottle.set_pos(STATIC_BOTTLE_POSITION); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
+        self.mug.set_pos(STATIC_BOTTLE_POSITION); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
+        self.goal_bottle.set_pos(bottle_pos); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.box.set_pos(self.box_pos); self.box.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.kinova.set_dofs_position(np.array(KINOVA_START_DOFS_POS), self.kdofs_idx)
         self.scene.step()
@@ -223,7 +240,7 @@ class GenesisGym(gymnasium.Env):
         image = cv2.resize(image, self.size)
 
         arm_pos = self.kinova.get_dofs_position(dofs_idx_local=self.kdofs_idx).cpu().numpy()
-        bottle_pos = self.bottle.get_pos().cpu().numpy()
+        bottle_pos = self.mug.get_pos().cpu().numpy()
         state = np.concatenate((arm_pos, bottle_pos))
 
         self.last_arm_dofs = arm_pos
@@ -248,7 +265,6 @@ class GenesisGym(gymnasium.Env):
 
     def apply_action(self, action):
 
-
         arm_pos, gripper_pos = action[:6], action[6:]
 
         gripper_force = self.calc_gripper_force(gripper_pos)
@@ -257,7 +273,7 @@ class GenesisGym(gymnasium.Env):
         self.kinova.control_dofs_position(arm_pos, dofs_idx_local=self.kdofs_idx[:len(arm_pos)])
 
     def compute_reward(self, obs):
-        bottle_pos = self.bottle.get_pos()
+        bottle_pos = self.mug.get_pos()
         goal_pos = self.goal_bottle.get_pos()
         distance = torch.linalg.norm(bottle_pos - goal_pos, ord=2, dim=-1, keepdim=True)
 
@@ -305,7 +321,7 @@ if __name__ == '__main__':
         # action = demo_player.next_action(normalize=False)
         print("action: " , action)
         if action is None or steps > env._max_episode_steps() or done:
-            bottleZ = env.bottle.get_pos().cpu().numpy()[2]
+            bottleZ = env.mug.get_pos().cpu().numpy()[2]
             print(f"\t Max Reward {max_reward:+1.2f}. {bottleZ=}")
             max_reward = float('-inf')
             # trial_id = demo_player.next_demo()
