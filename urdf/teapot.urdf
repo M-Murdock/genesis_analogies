@@ -1,0 +1,29 @@
+
+<robot name="utah_teapot">
+
+  <link name="teapot_body">
+    <visual>
+      <geometry>
+        <mesh filename="package://genesis_analogies/meshes/teapot.stl" scale="0.002 0.002 0.002"/>
+      </geometry>
+      <material name="teapot_white">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+
+    <collision>
+      <geometry>
+        <mesh filename="package://genesis_analogies/meshes/teapot.stl" scale="0.002 0.002 0.002"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.002" ixy="0.0" ixz="0.0"
+               iyy="0.002" iyz="0.0"
+               izz="0.002"/>
+    </inertial>
+  </link>
+
+</robot>
