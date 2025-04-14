@@ -153,7 +153,61 @@ class KitchenGym(GenesisGym):
 
         return reward, done # TODO: implement reward function
 
-    
+def policy(env):
+    return {'action': env.action_space.sample()} 
+    import torch
+
+def sample_action(state, action_space, theta, sigma=0.1):
+    """
+    Samples an action from a Gaussian policy: a ~ N(Ws, σ^2 I)
+
+    Args:
+        state (Tensor): [state_dim] — current state
+        theta (Tensor): [action_dim * state_dim] — flat policy weights
+        action_dim (int): dimensionality of the action space
+        sigma (float): fixed standard deviation of Gaussian
+
+    Returns:
+        action (Tensor): [action_dim] — sampled action
+    """
+    action_dim=action_space.shape[0]
+    state_dim = state.shape[0]
+    W = theta.view(action_dim, state_dim)  # Reshape to weight matrix
+    mean = W @ state  # Linear policy: mean = W * state
+    dist = torch.distributions.Normal(mean, sigma)
+    action = dist.sample()
+    return action
+
+def log_probability(action, state, theta, action_dim, sigma=0.1):
+    """
+    Log probability of action under Gaussian policy with linear mean.
+
+    Args:
+        action (Tensor): [action_dim]
+        state (Tensor): [state_dim]
+        theta (Tensor): [action_dim * state_dim]
+        action_dim (int): Dimensionality of action space
+        sigma (float): Standard deviation of Gaussian (fixed)
+
+    Returns:
+        log_prob (Tensor): Scalar log probability
+    """
+    state_dim = state.shape[0]
+    W = theta.view(action_dim, state_dim)  # Reshape theta into weight matrix
+    mean = W @ state  # Linear policy: mean = W * state
+
+    dist = torch.distributions.Normal(mean, sigma)
+    log_prob = dist.log_prob(action).sum()  # Sum over action dimensions
+    return log_prob
+
+def random_initialization(state_dim, action_dim):
+    """
+    Returns a flat tensor representing randomly initialized policy parameters.
+    """
+    # Small random weights from a normal distribution
+    theta = torch.randn(action_dim * state_dim) * 0.01  # Or uniform, or Xavier, etc.
+    return theta
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Genesis Gym Environment')
@@ -168,41 +222,92 @@ if __name__ == '__main__':
     
 
     env = KitchenGym(args)
-    obs = env.reset()
-    done = False
-    max_reward = float('-inf')
+    # obs = env.reset()
+    # done = False
+    # max_reward = float('-inf')
     trials = 1; successful_trials = 0; steps = 0; pickups = 0
 
+    n_episodes = 100
+    max_steps = 100
 
-    while True:
-        action = {'action': env.action_space.sample()}  # Sample random action
-        # action = demo_player.next_action(normalize=False)
-        print("action: " , action)
-        if action is None or steps > env._max_episode_steps() or done:
-            bottleZ = env.mug.get_pos().cpu().numpy()[2]
-            print(f"\t Max Reward {max_reward:+1.2f}. {bottleZ=}")
-            max_reward = float('-inf')
-            # trial_id = demo_player.next_demo()
-            if done: successful_trials += 1
-            if bottleZ > 0.15: pickups += 1
-            # if trial_id == -1:
-            #     print("No more demos")
-            #     break
-            trials += 1; steps = 0; done = False
-            # env.reset(trial_id=trial_id)
-            env.reset()
-        else:
-            steps += 1
-            obs, reward, done, *_ = env.step(action['action'])
+    # theta = random_initialization((10 + 3,), (7,))
+    theta = random_initialization(13, 7)
+
+    for episode in range(n_episodes):
+
+        trajectory = []
+        # state = env.reset()["state"]
+        state = env.get_obs(is_first=True)["state"]
+        # print("State:")
+        # print(state)
+        done = False
+
+        # total_reward = 0
+        # log_probs = []
+        # rewards = []
+        # env.reset()
+
+        while not done:
+            action = sample_action(state, env.action_space, theta)
+            next_state, reward, done, _ = env.step(action)
+            trajectory.append((state, action, reward))
+            state = next_state["state"]
+            # action = policy(env)['action']
+            # obs, reward, done, *_ = env.step(action)
+            # total_reward += reward
             if args.vis: env.render(use_imshow=True)
-            if reward > max_reward:
-                max_reward = reward
-            
-            # if reward > -0.10:
-            #     print(f"Reward: {reward}")
+            # if reward > max_reward:
+            #     max_reward = reward
 
-    print(f"Trials: {trials} Successful Trials: {successful_trials} Success Rate: {successful_trials/trials:.2%}")
-    print(f"Pickups: {pickups} Pickup Rate: {pickups/trials:.2%}")
+        # 3. Calculate Returns
+        returns = []
+        G = 0  # Initialize discounted return
+        for step in reversed(range(len(traj)-1)):
+            G = reward + discount_factor * G  # Discounted return
+            returns.append(G)
+        returns.reverse()
+
+        # 4. Update Policy (REINFORCE)
+        gradient = 0
+        for step in range(0, len(trajectory-1)):
+            state, action, _ = trajectory[step]
+            # Calculate log probability of action
+            log_prob = log_probability(action, state, theta)
+            # Update gradient with return
+            gradient += log_prob * returns[step]
+
+        # Update policy parameters using gradient ascent (or descent)
+        theta = theta + learning_rate * gradient
+
+
+
+    # while True:
+    #     action = {'action': env.action_space.sample()}  # Sample random action
+    #     # action = demo_player.next_action(normalize=False)
+    #     print("action: " , action)
+    #     if action is None or steps > env._max_episode_steps() or done:
+    #         bottleZ = env.mug.get_pos().cpu().numpy()[2]
+    #         print(f"\t Max Reward {max_reward:+1.2f}. {bottleZ=}")
+    #         max_reward = float('-inf')
+    #         # trial_id = demo_player.next_demo()
+    #         if done: successful_trials += 1
+    #         if bottleZ > 0.15: pickups += 1
+    #         # if trial_id == -1:
+    #         #     print("No more demos")
+    #         #     break
+    #         trials += 1; steps = 0; done = False
+    #         # env.reset(trial_id=trial_id)
+    #         env.reset()
+    #     else:
+    #         steps += 1
+    #         obs, reward, done, *_ = env.step(action['action'])
+    #         if args.vis: env.render(use_imshow=True)
+    #         if reward > max_reward:
+    #             max_reward = reward
+            
+
+    # print(f"Trials: {trials} Successful Trials: {successful_trials} Success Rate: {successful_trials/trials:.2%}")
+    # print(f"Pickups: {pickups} Pickup Rate: {pickups/trials:.2%}")
 
 
     # action structure:
