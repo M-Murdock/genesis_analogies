@@ -1,11 +1,8 @@
-from train_tea import GenesisGym
-import gymnasium
-from gymnasium import spaces
+from genesis_gym import GenesisGym
 import numpy as np
 import random
 import genesis as gs
 import pathlib as pl
-import cv2
 import torch
 from kinova import JOINT_NAMES as kinova_joint_names, EEF_NAME as kinova_eef_name, TRIALS_POSITION_0, TRIALS_POSITION_1, TRIALS_POSITION_2
 
@@ -13,8 +10,10 @@ FINGERTIP_POS = 1.0
 KINOVA_START_DOFS_POS = [0.3268500269015339, -1.4471734542578538, 2.3453266624159497, -1.3502152158191212, 2.209384006676201, -1.5125125137062945, -1, 1, FINGERTIP_POS, FINGERTIP_POS]
 MUG_POSITION = torch.tensor((0.65, -0.225, 0.17))
 TEAPOT_POSITION = torch.tensor((0.7, 0, 0.17))
-PX, PZ = 0.7, 0.17#0.465, 0.05
-POSITION_0 = torch.tensor((PX, 0.1, PZ))
+TABLE_WIDTH, TABLE_HEIGHT = 0.75, 0.14
+
+PX, PZ = 0.7, 0.17
+POSITION_0 = torch.tensor((PX, -0.1, PZ))
 POSITION_1 = torch.tensor((PX, -0.05, PZ))
 POSITION_2 = torch.tensor((PX, -0.2, PZ))
 
@@ -44,9 +43,6 @@ class KitchenGym(GenesisGym):
             gs.morphs.Plane(),
         )
 
-        TABLE_WIDTH, TABLE_HEIGHT = 0.75, 0.14 
-        MUG_RADIUS, MUG_HEIGHT = 0.034, 0.03
-
         self.table_pos = (0.78, -TABLE_WIDTH / 4, 0.02)
         self.table = scene.add_entity(
             material=gs.materials.Rigid(rho=5000),
@@ -69,7 +65,7 @@ class KitchenGym(GenesisGym):
 
         self.kinova = kinova = scene.add_entity(
             gs.morphs.URDF(
-                file=str(pl.Path(__file__).parent / 'gen3_lite_2f_robotiq_85.urdf'),
+                file=str(pl.Path(__file__).parent / 'urdf/gen3_lite_2f_robotiq_85.urdf'),
                 fixed=True,
                 convexify=True,
                 pos=(0.0, 0.0, 0.055), # raise to account for table mount
@@ -130,7 +126,7 @@ class KitchenGym(GenesisGym):
             teapot_pos = [POSITION_0, POSITION_1, POSITION_2][rand_idx]
 
         self.mug.set_pos(MUG_POSITION); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
-        self.teapot.set_pos(TEAPOT_POSITION); self.teapot.set_quat(torch.Tensor([1, 0, 0, 0]))
+        self.teapot.set_pos(teapot_pos); self.teapot.set_quat(torch.Tensor([1, 0, 0, 0]))
         
         self.table.set_pos(self.table_pos); self.table.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.kinova.set_dofs_position(np.array(KINOVA_START_DOFS_POS), self.kdofs_idx)
@@ -143,8 +139,8 @@ class KitchenGym(GenesisGym):
         return ret
 
     def compute_reward(self, obs):
-        teapot_pos = self.mug.get_pos()
-        goal_pos = self.teapot.get_pos()
+        teapot_pos = self.teapot.get_pos()
+        goal_pos = self.mug.get_pos()
         distance = torch.linalg.norm(teapot_pos - goal_pos, ord=2, dim=-1, keepdim=True)
 
         reward = -distance.item() # TODO: implement reward function
@@ -176,6 +172,8 @@ if __name__ == '__main__':
     done = False
     max_reward = float('-inf')
     trials = 1; successful_trials = 0; steps = 0; pickups = 0
+
+
     while True:
         action = {'action': env.action_space.sample()}  # Sample random action
         # action = demo_player.next_action(normalize=False)
