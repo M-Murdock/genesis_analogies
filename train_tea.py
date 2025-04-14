@@ -117,11 +117,9 @@ class GenesisGym(gymnasium.Env):
         )
 
         self.cam_0 = scene.add_camera(
-            pos=(1, 0, 1),
-            # pos=(1,1,1),
+            pos=(2, 0, 1),
             lookat=(0.6, 0, 0.25),
-            # lookat=(0.5, 0, 0.5),
-            # fov=30,
+            # lookat=(0.6, -0.3, 0.25),
             fov=40,
             GUI=True,
         )
@@ -222,6 +220,7 @@ class GenesisGym(gymnasium.Env):
         # self.goal_bottle.set_pos(STATIC_BOTTLE_POSITION); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.mug.set_pos(STATIC_BOTTLE_POSITION); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.goal_bottle.set_pos(bottle_pos); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
+        
         self.box.set_pos(self.box_pos); self.box.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.kinova.set_dofs_position(np.array(KINOVA_START_DOFS_POS), self.kdofs_idx)
         self.scene.step()
