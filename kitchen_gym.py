@@ -153,11 +153,9 @@ class KitchenGym(GenesisGym):
 
         return reward, done # TODO: implement reward function
 
-def policy(env):
-    return {'action': env.action_space.sample()} 
-    import torch
 
-def sample_action(state, action_space, theta, sigma=0.1):
+
+def sample_action(state, action_dim, theta, sigma=0.1):
     """
     Samples an action from a Gaussian policy: a ~ N(Ws, σ^2 I)
 
@@ -170,7 +168,6 @@ def sample_action(state, action_space, theta, sigma=0.1):
     Returns:
         action (Tensor): [action_dim] — sampled action
     """
-    action_dim=action_space.shape[0]
     state_dim = state.shape[0]
     W = theta.view(action_dim, state_dim)  # Reshape to weight matrix
     mean = W @ state  # Linear policy: mean = W * state
@@ -178,7 +175,7 @@ def sample_action(state, action_space, theta, sigma=0.1):
     action = dist.sample()
     return action
 
-def log_probability(action, state, theta, action_dim, sigma=0.1):
+def log_probability(state, theta, action_dim, sigma=0.1):
     """
     Log probability of action under Gaussian policy with linear mean.
 
@@ -222,57 +219,56 @@ if __name__ == '__main__':
     
 
     env = KitchenGym(args)
-    # obs = env.reset()
-    # done = False
+
+    ACTION_DIM = env.action_space.shape[0]
     # max_reward = float('-inf')
     trials = 1; successful_trials = 0; steps = 0; pickups = 0
 
     n_episodes = 100
     max_steps = 100
+    s=0
 
-    # theta = random_initialization((10 + 3,), (7,))
     theta = random_initialization(13, 7)
 
     for episode in range(n_episodes):
-
+        print("episode: ", episode)
         trajectory = []
         # state = env.reset()["state"]
         state = env.get_obs(is_first=True)["state"]
-        # print("State:")
-        # print(state)
         done = False
 
-        # total_reward = 0
-        # log_probs = []
-        # rewards = []
-        # env.reset()
 
         while not done:
-            action = sample_action(state, env.action_space, theta)
+            action = sample_action(state, ACTION_DIM, theta)
             next_state, reward, done, _ = env.step(action)
             trajectory.append((state, action, reward))
             state = next_state["state"]
-            # action = policy(env)['action']
+            s+=1
             # obs, reward, done, *_ = env.step(action)
             # total_reward += reward
             if args.vis: env.render(use_imshow=True)
+            if s >= max_steps:
+                done = True
             # if reward > max_reward:
             #     max_reward = reward
+
+        discount_factor = 0.98
+        learning_rate = 0.008
 
         # 3. Calculate Returns
         returns = []
         G = 0  # Initialize discounted return
-        for step in reversed(range(len(traj)-1)):
+        for step in reversed(range(len(trajectory)-1)):
             G = reward + discount_factor * G  # Discounted return
             returns.append(G)
         returns.reverse()
 
         # 4. Update Policy (REINFORCE)
         gradient = 0
-        for step in range(0, len(trajectory-1)):
+        for step in range(0, len(trajectory)-1):
             state, action, _ = trajectory[step]
             # Calculate log probability of action
-            log_prob = log_probability(action, state, theta)
+            log_prob = log_probability(state, theta, ACTION_DIM)
             # Update gradient with return
             gradient += log_prob * returns[step]
 
