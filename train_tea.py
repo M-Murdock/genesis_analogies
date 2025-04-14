@@ -10,7 +10,7 @@ from kinova import JOINT_NAMES as kinova_joint_names, EEF_NAME as kinova_eef_nam
 
 FINGERTIP_POS = 1.0
 KINOVA_START_DOFS_POS = [0.3268500269015339, -1.4471734542578538, 2.3453266624159497, -1.3502152158191212, 2.209384006676201, -1.5125125137062945, -1, 1, FINGERTIP_POS, FINGERTIP_POS]
-STATIC_BOTTLE_POSITION = torch.tensor((0.65, -0.225, 0.17))
+MUG_POSITION = torch.tensor((0.65, -0.225, 0.17))
 PX, PZ = 0.465, 0.05
 POSITION_0 = torch.tensor((PX, 0.1, PZ))
 POSITION_1 = torch.tensor((PX, -0.05, PZ))
@@ -138,35 +138,22 @@ class GenesisGym(gymnasium.Env):
         )
 
 
-        # TODO: make the bottle slightly deformable
-        # self.bottle = bottle = scene.add_entity(
-        #     material=gs.materials.Rigid(rho=self.args['rho'],
-        #                                 friction=self.args['friction']),
-        #     morph=gs.morphs.Cylinder(
-        #         pos=POSITION_0,
-        #         radius=BOTTLE_RADIUS,
-        #         height=BOTTLE_HEIGHT,
-        #     ),
-        # )
-
-        self.goal_bottle = goal_bottle = scene.add_entity(
+        self.teapot = teapot = scene.add_entity(
             material=gs.materials.Rigid(rho=self.args['rho'],
                                     friction=2.0),
             morph=gs.morphs.Cylinder(
-                # pos=STATIC_BOTTLE_POSITION,
                 pos=(1,1,1),
                 radius=BOTTLE_RADIUS,
                 height=BOTTLE_HEIGHT,
             ),
         )
 
-# STATIC_BOTTLE_POSITION = torch.tensor((0.65, -0.225, 0.17))
         self.mug = mug = scene.add_entity(
             gs.morphs.URDF(
-                file=str(pl.Path(__file__).parent / 'mug.urdf'),
+                file=str(pl.Path(__file__).parent / 'urdf/mug.urdf'),
                 fixed=True,
                 convexify=True,
-                pos=STATIC_BOTTLE_POSITION, # raise to account for table mount
+                pos=MUG_POSITION, # raise to account for table mount
             ),
             material=gs.materials.Rigid(friction=1.0),
             vis_mode="collision"
@@ -206,20 +193,20 @@ class GenesisGym(gymnasium.Env):
         self.n_steps = 0
 
         if trial_id in TRIALS_POSITION_0:
-            bottle_pos = POSITION_0
+            teapot_pos = POSITION_0
         elif trial_id in TRIALS_POSITION_1:
-            bottle_pos = POSITION_1
+            teapot_pos = POSITION_1
         elif trial_id in TRIALS_POSITION_2:
-            bottle_pos = POSITION_2
+            teapot_pos = POSITION_2
         else:
             rand_idx = random.randint(0,2)
-            bottle_pos = [POSITION_0, POSITION_1, POSITION_2][rand_idx]
+            teapot_pos = [POSITION_0, POSITION_1, POSITION_2][rand_idx]
 
-        # self.bottle.set_pos(bottle_pos); self.bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
-        # self.mug.set_pos(bottle_pos); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
-        # self.goal_bottle.set_pos(STATIC_BOTTLE_POSITION); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
-        self.mug.set_pos(STATIC_BOTTLE_POSITION); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
-        self.goal_bottle.set_pos(bottle_pos); self.goal_bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
+        # self.bottle.set_pos(teapot_pos); self.bottle.set_quat(torch.Tensor([1, 0, 0, 0]))
+        # self.mug.set_pos(teapot_pos); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
+        # self.teapot.set_pos(STATIC_teapot_posITION); self.teapot.set_quat(torch.Tensor([1, 0, 0, 0]))
+        self.mug.set_pos(MUG_POSITION); self.mug.set_quat(torch.Tensor([1, 0, 0, 0]))
+        self.teapot.set_pos(teapot_pos); self.teapot.set_quat(torch.Tensor([1, 0, 0, 0]))
         
         self.box.set_pos(self.box_pos); self.box.set_quat(torch.Tensor([1, 0, 0, 0]))
         self.kinova.set_dofs_position(np.array(KINOVA_START_DOFS_POS), self.kdofs_idx)
@@ -239,8 +226,8 @@ class GenesisGym(gymnasium.Env):
         image = cv2.resize(image, self.size)
 
         arm_pos = self.kinova.get_dofs_position(dofs_idx_local=self.kdofs_idx).cpu().numpy()
-        bottle_pos = self.mug.get_pos().cpu().numpy()
-        state = np.concatenate((arm_pos, bottle_pos))
+        teapot_pos = self.mug.get_pos().cpu().numpy()
+        state = np.concatenate((arm_pos, teapot_pos))
 
         self.last_arm_dofs = arm_pos
 
@@ -272,12 +259,12 @@ class GenesisGym(gymnasium.Env):
         self.kinova.control_dofs_position(arm_pos, dofs_idx_local=self.kdofs_idx[:len(arm_pos)])
 
     def compute_reward(self, obs):
-        bottle_pos = self.mug.get_pos()
-        goal_pos = self.goal_bottle.get_pos()
-        distance = torch.linalg.norm(bottle_pos - goal_pos, ord=2, dim=-1, keepdim=True)
+        teapot_pos = self.mug.get_pos()
+        goal_pos = self.teapot.get_pos()
+        distance = torch.linalg.norm(teapot_pos - goal_pos, ord=2, dim=-1, keepdim=True)
 
         reward = -distance.item() # TODO: implement reward function
-        done = reward > -0.1 and (bottle_pos[2].cpu().numpy().item() >= (STATIC_BOTTLE_POSITION[2] - 0.07)) and (goal_pos[2].cpu().numpy().item() >= (STATIC_BOTTLE_POSITION[2] - 0.07))
+        done = reward > -0.1 and (teapot_pos[2].cpu().numpy().item() >= (MUG_POSITION[2] - 0.07)) and (goal_pos[2].cpu().numpy().item() >= (MUG_POSITION[2] - 0.07))
         if done: 
             print(f"SUCCESS!")
             reward = 1.0
