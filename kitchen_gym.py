@@ -172,8 +172,9 @@ def update_policy(policy_network, rewards, log_probs):
         discounted_rewards.append(Gt)
         
     discounted_rewards = torch.tensor(discounted_rewards)
-    discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9) # normalize discounted rewards
-
+    print("NON-NORMALIZED DISCOUNTED REWARDS: ", discounted_rewards)
+    # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9) # normalize discounted rewards
+    print("DISCOUNTED REWARDS: ", discounted_rewards)
     policy_gradient = []
     for log_prob, Gt in zip(log_probs, discounted_rewards):
         policy_gradient.append(-log_prob * Gt)
@@ -205,21 +206,21 @@ if __name__ == '__main__':
     
     if args.vis: env.render(use_imshow=True)
     
-    max_episode_num = 5000
-    max_steps = 10000
+    max_episode_num = 100#5000
+    max_steps = 100#10000
     numsteps = []
     avg_numsteps = []
     all_rewards = []
 
     for episode in range(max_episode_num):
+        print("Episode ", episode)
         state = env.reset()["state"]
         log_probs = []
         rewards = []
 
         for steps in range(max_steps):
             action, log_prob = policy_net.get_action(state)
-            print("Action:")
-            print(action)
+
             new_state, reward, done, _ = env.step(action)
             log_probs.append(log_prob)
             rewards.append(reward)
@@ -230,7 +231,7 @@ if __name__ == '__main__':
                 avg_numsteps.append(np.mean(numsteps[-10:]))
                 all_rewards.append(np.sum(rewards))
                 if episode % 1 == 0:
-                    sys.stdout.write("episode: {}, total reward: {}, average_reward: {}, length: {}\n".format(episode, np.round(np.sum(rewards), decimals = 3),  np.round(np.mean(all_rewards[-10:]), decimals = 3), steps))
+                    print("episode: {}, total reward: {}, average_reward: {}, length: {}\n".format(episode, np.round(np.sum(rewards), decimals = 3),  np.round(np.mean(all_rewards[-10:]), decimals = 3), steps))
                 break
             
             state = new_state["state"]

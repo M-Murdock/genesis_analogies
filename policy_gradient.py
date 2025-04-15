@@ -8,10 +8,9 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 
-# Constants
 
 class PolicyNetwork(nn.Module):
-    def __init__(self, num_inputs, action_dim=7, hidden_size=64, learning_rate=3e-4):
+    def __init__(self, num_inputs, action_dim, hidden_size, learning_rate=3e-4):
         super(PolicyNetwork, self).__init__()
 
         self.action_dim = action_dim
@@ -20,11 +19,17 @@ class PolicyNetwork(nn.Module):
 
         # Log std as a learnable parameter (optional: you can also output it from a layer)
         self.log_std = nn.Parameter(torch.zeros(action_dim))
-
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, state):
         x = F.relu(self.linear1(state))
+        # print("LINEAR1: ", self.linear1)
+        print("Weight:", self.linear1.weight) 
+        print("Bias:", self.linear1.bias) 
+        # print("Linear:", self.linear1(state))
+        # print("STATE:", state)
+        # print("X:", x) #TODO: fix situation where X = [nan, nan, nan, ...]. state has reasonable values, so problem must be elsewhere
+        # weights and bias have nan, so that may be where the issue originates
         mean = self.mean_layer(x)
         std = self.log_std.exp().expand_as(mean)  # convert log_std to std
         return mean, std
