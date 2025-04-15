@@ -1,6 +1,6 @@
+# Adapted from https://medium.com/@thechrisyoon/deriving-policy-gradients-and-implementing-reinforce-f887949bd63
 import sys
 import torch  
-# import gym
 import numpy as np  
 import torch.nn as nn
 import torch.optim as optim
@@ -9,7 +9,7 @@ from torch.autograd import Variable
 import matplotlib.pyplot as plt
 
 # Constants
-GAMMA = 0.9
+
 class PolicyNetwork(nn.Module):
     def __init__(self, num_inputs, action_dim=7, hidden_size=64, learning_rate=3e-4):
         super(PolicyNetwork, self).__init__()

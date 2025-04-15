@@ -1,3 +1,5 @@
+# Adapted from https://medium.com/@thechrisyoon/deriving-policy-gradients-and-implementing-reinforce-f887949bd63
+
 from genesis_gym import GenesisGym
 import numpy as np
 import random
@@ -157,57 +159,6 @@ class KitchenGym(GenesisGym):
 
 
 
-def sample_action(state, action_dim, theta, sigma=0.1):
-    """
-    Samples an action from a Gaussian policy: a ~ N(Ws, σ^2 I)
-
-    Args:
-        state (Tensor): [state_dim] — current state
-        theta (Tensor): [action_dim * state_dim] — flat policy weights
-        action_dim (int): dimensionality of the action space
-        sigma (float): fixed standard deviation of Gaussian
-
-    Returns:
-        action (Tensor): [action_dim] — sampled action
-    """
-    state_dim = state.shape[0]
-    W = theta.view(action_dim, state_dim)  # Reshape to weight matrix
-    mean = W @ state  # Linear policy: mean = W * state
-    dist = torch.distributions.Normal(mean, sigma)
-    action = dist.sample()
-    return action
-
-def log_probability(state, theta, action_dim, sigma=0.1):
-    """
-    Log probability of action under Gaussian policy with linear mean.
-
-    Args:
-        action (Tensor): [action_dim]
-        state (Tensor): [state_dim]
-        theta (Tensor): [action_dim * state_dim]
-        action_dim (int): Dimensionality of action space
-        sigma (float): Standard deviation of Gaussian (fixed)
-
-    Returns:
-        log_prob (Tensor): Scalar log probability
-    """
-    state_dim = state.shape[0]
-    W = theta.view(action_dim, state_dim)  # Reshape theta into weight matrix
-    mean = W @ state  # Linear policy: mean = W * state
-
-    dist = torch.distributions.Normal(mean, sigma)
-    log_prob = dist.log_prob(action).sum()  # Sum over action dimensions
-    return log_prob
-
-def random_initialization(state_dim, action_dim):
-    """
-    Returns a flat tensor representing randomly initialized policy parameters.
-    """
-    # Small random weights from a normal distribution
-    theta = torch.randn(action_dim * state_dim) * 0.01  # Or uniform, or Xavier, etc.
-    return theta
-
-
 def update_policy(policy_network, rewards, log_probs):
     GAMMA = 0.9
     discounted_rewards = []
@@ -249,11 +200,10 @@ if __name__ == '__main__':
 
     ACTION_DIM = env.action_space.shape[0]
     STATE_DIM = env.observation_space["state"].shape[0]
-    # max_reward = float('-inf')
-    # trials = 1; successful_trials = 0; steps = 0; pickups = 0
 
     policy_net = PolicyNetwork(STATE_DIM, ACTION_DIM, 128)
     
+    if args.vis: env.render(use_imshow=True)
     
     max_episode_num = 5000
     max_steps = 10000
@@ -265,9 +215,8 @@ if __name__ == '__main__':
         state = env.reset()["state"]
         log_probs = []
         rewards = []
-    # theta = random_initialization(13, 7)
+
         for steps in range(max_steps):
-            # env.render()
             action, log_prob = policy_net.get_action(state)
             print("Action:")
             print(action)
@@ -289,90 +238,6 @@ if __name__ == '__main__':
     plt.plot(avg_numsteps)
     plt.xlabel('Episode')
     plt.show()
-
-    # for episode in range(max_episode_num):
-    #     print("episode: ", episode)
-    #     trajectory = []
-    #     env.reset()
-    #     # state = env.reset()["state"]
-    #     state = env.get_obs(is_first=True)["state"]
-    #     done = False
-
-        # s=0 # keep track of how many steps
-        # while not done:
-        #     action = sample_action(state, ACTION_DIM, theta)
-        #     next_state, reward, done, _ = env.step(action)
-    
-        #     trajectory.append((state, action, reward))
-        #     state = next_state["state"]
-        #     s+=1
-    
-        #     # obs, reward, done, *_ = env.step(action)
-        #     # total_reward += reward
-        #     if args.vis: env.render(use_imshow=True)
-            
-        #     if s >= max_steps:
-        #         done = True
-        #     # if reward > max_reward:
-        #     #     max_reward = reward
-
-        # discount_factor = 0.98
-        # learning_rate = 0.008
-
-        # # 3. Calculate Stepwise Returns
-        # returns = []
-        # G = 0  # Initialize discounted return
-        # for r in reversed(trajectory):
-        #     # G = reward + discount_factor * G  # Discounted return
-        #     G = r[2] + G * discount_factor
-        #     returns.insert(0, G)
-        
-        # returns = torch.tensor(returns)
-        # normalized_returns = (returns - returns.mean()) / returns.std()
-        # print(returns)
-
-
-        # # 4. Update Policy (REINFORCE)
-        # gradient = 0
-        # for step in range(0, len(trajectory)-1):
-        #     state, action, _ = trajectory[step]
-        #     # Calculate log probability of action
-        #     log_prob = log_probability(state, theta, ACTION_DIM)
-        #     # Update gradient with return
-        #     gradient += log_prob * returns[step]
-
-        # # Update policy parameters using gradient ascent (or descent)
-        # theta = theta + learning_rate * gradient
-
-
-
-    # while True:
-    #     action = {'action': env.action_space.sample()}  # Sample random action
-    #     # action = demo_player.next_action(normalize=False)
-    #     print("action: " , action)
-    #     if action is None or steps > env._max_episode_steps() or done:
-    #         bottleZ = env.mug.get_pos().cpu().numpy()[2]
-    #         print(f"\t Max Reward {max_reward:+1.2f}. {bottleZ=}")
-    #         max_reward = float('-inf')
-    #         # trial_id = demo_player.next_demo()
-    #         if done: successful_trials += 1
-    #         if bottleZ > 0.15: pickups += 1
-    #         # if trial_id == -1:
-    #         #     print("No more demos")
-    #         #     break
-    #         trials += 1; steps = 0; done = False
-    #         # env.reset(trial_id=trial_id)
-    #         env.reset()
-    #     else:
-    #         steps += 1
-    #         obs, reward, done, *_ = env.step(action['action'])
-    #         if args.vis: env.render(use_imshow=True)
-    #         if reward > max_reward:
-    #             max_reward = reward
-            
-
-    # print(f"Trials: {trials} Successful Trials: {successful_trials} Success Rate: {successful_trials/trials:.2%}")
-    # print(f"Pickups: {pickups} Pickup Rate: {pickups/trials:.2%}")
 
 
     # action structure:
