@@ -5,6 +5,8 @@ import genesis as gs
 import pathlib as pl
 import torch
 from kinova import JOINT_NAMES as kinova_joint_names, EEF_NAME as kinova_eef_name, TRIALS_POSITION_0, TRIALS_POSITION_1, TRIALS_POSITION_2
+from policy_gradient import PolicyNetwork
+import matplotlib as plt
 
 FINGERTIP_POS = 1.0
 KINOVA_START_DOFS_POS = [0.3268500269015339, -1.4471734542578538, 2.3453266624159497, -1.3502152158191212, 2.209384006676201, -1.5125125137062945, -1, 1, FINGERTIP_POS, FINGERTIP_POS]
@@ -205,6 +207,31 @@ def random_initialization(state_dim, action_dim):
     theta = torch.randn(action_dim * state_dim) * 0.01  # Or uniform, or Xavier, etc.
     return theta
 
+
+def update_policy(policy_network, rewards, log_probs):
+    GAMMA = 0.9
+    discounted_rewards = []
+
+    for t in range(len(rewards)):
+        Gt = 0 
+        pw = 0
+        for r in rewards[t:]:
+            Gt = Gt + GAMMA**pw * r
+            pw = pw + 1
+        discounted_rewards.append(Gt)
+        
+    discounted_rewards = torch.tensor(discounted_rewards)
+    discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9) # normalize discounted rewards
+
+    policy_gradient = []
+    for log_prob, Gt in zip(log_probs, discounted_rewards):
+        policy_gradient.append(-log_prob * Gt)
+    
+    policy_network.optimizer.zero_grad()
+    policy_gradient = torch.stack(policy_gradient).sum()
+    policy_gradient.backward()
+    policy_network.optimizer.step()
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Genesis Gym Environment')
@@ -221,59 +248,101 @@ if __name__ == '__main__':
     env = KitchenGym(args)
 
     ACTION_DIM = env.action_space.shape[0]
+    STATE_DIM = env.observation_space["state"].shape[0]
     # max_reward = float('-inf')
-    trials = 1; successful_trials = 0; steps = 0; pickups = 0
+    # trials = 1; successful_trials = 0; steps = 0; pickups = 0
 
-    n_episodes = 100
-    max_steps = 100
-    s=0
+    policy_net = PolicyNetwork(STATE_DIM, ACTION_DIM, 128)
+    
+    
+    max_episode_num = 5000
+    max_steps = 10000
+    numsteps = []
+    avg_numsteps = []
+    all_rewards = []
 
-    theta = random_initialization(13, 7)
+    for episode in range(max_episode_num):
+        state = env.reset()["state"]
+        log_probs = []
+        rewards = []
+    # theta = random_initialization(13, 7)
+        for steps in range(max_steps):
+            # env.render()
+            action, log_prob = policy_net.get_action(state)
+            print("Action:")
+            print(action)
+            new_state, reward, done, _ = env.step(action)
+            log_probs.append(log_prob)
+            rewards.append(reward)
 
-    for episode in range(n_episodes):
-        print("episode: ", episode)
-        trajectory = []
-        # state = env.reset()["state"]
-        state = env.get_obs(is_first=True)["state"]
-        done = False
+            if done:
+                update_policy(policy_net, rewards, log_probs)
+                numsteps.append(steps)
+                avg_numsteps.append(np.mean(numsteps[-10:]))
+                all_rewards.append(np.sum(rewards))
+                if episode % 1 == 0:
+                    sys.stdout.write("episode: {}, total reward: {}, average_reward: {}, length: {}\n".format(episode, np.round(np.sum(rewards), decimals = 3),  np.round(np.mean(all_rewards[-10:]), decimals = 3), steps))
+                break
+            
+            state = new_state["state"]
+    plt.plot(numsteps)
+    plt.plot(avg_numsteps)
+    plt.xlabel('Episode')
+    plt.show()
+
+    # for episode in range(max_episode_num):
+    #     print("episode: ", episode)
+    #     trajectory = []
+    #     env.reset()
+    #     # state = env.reset()["state"]
+    #     state = env.get_obs(is_first=True)["state"]
+    #     done = False
+
+        # s=0 # keep track of how many steps
+        # while not done:
+        #     action = sample_action(state, ACTION_DIM, theta)
+        #     next_state, reward, done, _ = env.step(action)
+    
+        #     trajectory.append((state, action, reward))
+        #     state = next_state["state"]
+        #     s+=1
+    
+        #     # obs, reward, done, *_ = env.step(action)
+        #     # total_reward += reward
+        #     if args.vis: env.render(use_imshow=True)
+            
+        #     if s >= max_steps:
+        #         done = True
+        #     # if reward > max_reward:
+        #     #     max_reward = reward
+
+        # discount_factor = 0.98
+        # learning_rate = 0.008
+
+        # # 3. Calculate Stepwise Returns
+        # returns = []
+        # G = 0  # Initialize discounted return
+        # for r in reversed(trajectory):
+        #     # G = reward + discount_factor * G  # Discounted return
+        #     G = r[2] + G * discount_factor
+        #     returns.insert(0, G)
+        
+        # returns = torch.tensor(returns)
+        # normalized_returns = (returns - returns.mean()) / returns.std()
+        # print(returns)
 
 
-        while not done:
-            action = sample_action(state, ACTION_DIM, theta)
-            next_state, reward, done, _ = env.step(action)
-            trajectory.append((state, action, reward))
-            state = next_state["state"]
-            s+=1
-            # obs, reward, done, *_ = env.step(action)
-            # total_reward += reward
-            if args.vis: env.render(use_imshow=True)
-            if s >= max_steps:
-                done = True
-            # if reward > max_reward:
-            #     max_reward = reward
+        # # 4. Update Policy (REINFORCE)
+        # gradient = 0
+        # for step in range(0, len(trajectory)-1):
+        #     state, action, _ = trajectory[step]
+        #     # Calculate log probability of action
+        #     log_prob = log_probability(state, theta, ACTION_DIM)
+        #     # Update gradient with return
+        #     gradient += log_prob * returns[step]
 
-        discount_factor = 0.98
-        learning_rate = 0.008
-
-        # 3. Calculate Returns
-        returns = []
-        G = 0  # Initialize discounted return
-        for step in reversed(range(len(trajectory)-1)):
-            G = reward + discount_factor * G  # Discounted return
-            returns.append(G)
-        returns.reverse()
-
-        # 4. Update Policy (REINFORCE)
-        gradient = 0
-        for step in range(0, len(trajectory)-1):
-            state, action, _ = trajectory[step]
-            # Calculate log probability of action
-            log_prob = log_probability(state, theta, ACTION_DIM)
-            # Update gradient with return
-            gradient += log_prob * returns[step]
-
-        # Update policy parameters using gradient ascent (or descent)
-        theta = theta + learning_rate * gradient
+        # # Update policy parameters using gradient ascent (or descent)
+        # theta = theta + learning_rate * gradient
 
 
 
