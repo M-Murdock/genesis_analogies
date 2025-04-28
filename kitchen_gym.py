@@ -14,10 +14,14 @@ MUG_POSITION = torch.tensor((0.65, -0.225, 0.17))
 TEAPOT_POSITION = torch.tensor((0.7, 0, 0.17))
 TABLE_WIDTH, TABLE_HEIGHT = 0.75, 0.14
 
+# PX, PZ = 0.7, 0.17
+# POSITION_0 = torch.tensor((PX, -0.1, PZ))
+# POSITION_1 = torch.tensor((PX, -0.05, PZ))
+# POSITION_2 = torch.tensor((PX, -0.2, PZ))
 PX, PZ = 0.7, 0.17
 POSITION_0 = torch.tensor((PX, -0.1, PZ))
-POSITION_1 = torch.tensor((PX, -0.05, PZ))
-POSITION_2 = torch.tensor((PX, -0.2, PZ))
+POSITION_1 = torch.tensor((PX, -0.1, PZ))
+POSITION_2 = torch.tensor((PX, -0.1, PZ))
 
 
 class KitchenGym(GenesisGym):
@@ -80,16 +84,25 @@ class KitchenGym(GenesisGym):
             vis_mode="collision"
         )
 
-        self.mug = mug = scene.add_entity(
-            gs.morphs.URDF(
-                file=str(pl.Path(__file__).parent / 'urdf/mug.urdf'),
-                fixed=True,
-                convexify=False,
-                pos=MUG_POSITION, # raise to account for table mount
+        # self.mug = mug = scene.add_entity(
+        #     gs.morphs.URDF(
+        #         file=str(pl.Path(__file__).parent / 'urdf/mug.urdf'),
+        #         fixed=True,
+        #         convexify=False,
+        #         pos=MUG_POSITION, # raise to account for table mount
+        #     ),
+        #     material=gs.materials.Rigid(friction=1.0),
+        #     vis_mode="collision"
+        # )
+        self.mug = scene.add_entity(
+            material=gs.materials.Rigid(rho=2500,
+                                        friction=0.2),
+            morph=gs.morphs.Cylinder(
+                pos=MUG_POSITION,
+                radius=0.0325,
+                height=0.1,
             ),
-            material=gs.materials.Rigid(friction=1.0),
-            vis_mode="collision"
-        )
+)
 
         self.kdofs_idx = kdofs_idx = [kinova.get_joint(name).dof_idx_local for name in kinova_joint_names]
         eef = kinova.get_link(kinova_eef_name)
@@ -135,9 +148,9 @@ class KitchenGym(GenesisGym):
         teapot_pos = self.teapot.get_pos()
         goal_pos = self.mug.get_pos()
         distance = torch.linalg.norm(teapot_pos - goal_pos, ord=2, dim=-1, keepdim=True)
-
         reward = -distance.item() # TODO: implement reward function
         done = reward > -0.1 and (teapot_pos[2].cpu().numpy().item() >= (MUG_POSITION[2] - 0.07)) and (goal_pos[2].cpu().numpy().item() >= (MUG_POSITION[2] - 0.07))
+        self.force_sparse = False
         if done: 
             print(f"SUCCESS!")
             reward = 1.0

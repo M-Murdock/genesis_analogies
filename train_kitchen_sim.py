@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 from policy_gradient import PolicyNetwork
-import matplotlib as plt
+# import matplotlib
+# matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 from kitchen_gym import KitchenGym
 
 ## Default Args
@@ -24,9 +26,9 @@ def update_policy(policy_network, rewards, log_probs):
         discounted_rewards.append(Gt)
         
     discounted_rewards = torch.tensor(discounted_rewards)
-    print("NON-NORMALIZED DISCOUNTED REWARDS: ", discounted_rewards)
+    # print("NON-NORMALIZED DISCOUNTED REWARDS: ", discounted_rewards)
     # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9) # normalize discounted rewards
-    print("DISCOUNTED REWARDS: ", discounted_rewards)
+    # print("DISCOUNTED REWARDS: ", discounted_rewards)
     policy_gradient = []
     for log_prob, Gt in zip(log_probs, discounted_rewards):
         policy_gradient.append(-log_prob * Gt)
@@ -59,39 +61,49 @@ if __name__ == '__main__':
     
     if args.vis: env.render(use_imshow=True)
     
-    max_episode_num = 100#5000
-    max_steps = 100#10000
+    max_episode_num = 5000
+    max_steps = 10000
     numsteps = []
     avg_numsteps = []
     all_rewards = []
 
     for episode in range(max_episode_num):
-        print("Episode ", episode)
+        
+        # print("Episode ", episode)
         state = env.reset()["state"]
         log_probs = []
         rewards = []
 
         for steps in range(max_steps):
+            print(env.mug.get_pos())
+            
+            print(env.mug.get_pos()[1]) # if the mug falls off the table, end the episode
+            if env.mug.get_pos()[1] < -0.23:
+                break
+
             action, log_prob = policy_net.get_action(state)
 
             new_state, reward, done, _ = env.step(action)
             log_probs.append(log_prob)
             rewards.append(reward)
+            
 
+            # print("REWARD:", rewards) # TODO: the reward looks normal here, so why is it weird in the 'done' loop???
             if done:
                 update_policy(policy_net, rewards, log_probs)
                 numsteps.append(steps)
                 avg_numsteps.append(np.mean(numsteps[-10:]))
-                all_rewards.append(np.sum(rewards))
+                all_rewards.append(np.sum(rewards)) # TODO: the total reward is always 1.0. Why???
                 if episode % 1 == 0:
                     print("episode: {}, total reward: {}, average_reward: {}, length: {}\n".format(episode, np.round(np.sum(rewards), decimals = 3),  np.round(np.mean(all_rewards[-10:]), decimals = 3), steps))
                 break
             
             state = new_state["state"]
-    plt.plot(numsteps)
-    plt.plot(avg_numsteps)
-    plt.xlabel('Episode')
-    plt.show()
+            
+    # plt.plot(numsteps)
+    # plt.plot(avg_numsteps)
+    # plt.xlabel('Episode')
+    # plt.show()
 
 
     # action structure:
