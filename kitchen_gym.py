@@ -24,6 +24,7 @@ POSITION_1 = torch.tensor((PX, -0.1, PZ))
 POSITION_2 = torch.tensor((PX, -0.1, PZ))
 
 
+
 class KitchenGym(GenesisGym):
     """
     Custom Gymnasium environment for the Genesis game.
@@ -34,8 +35,11 @@ class KitchenGym(GenesisGym):
     def init_env(self):
         self.kp = kp = 5
 
+        # self.scene = scene = gs.Scene(
+        #     show_viewer=self.args['vis'],
+        # )
         self.scene = scene = gs.Scene(
-            show_viewer=self.args['vis'],
+            show_viewer=False,
         )
 
         plane = scene.add_entity(
@@ -57,7 +61,7 @@ class KitchenGym(GenesisGym):
             pos=(2, 0, 1),
             lookat=(0.6, 0, 0.25),
             fov=40,
-            GUI=True,
+            GUI=False,
         )
 
 
@@ -145,16 +149,20 @@ class KitchenGym(GenesisGym):
         return ret
 
     def compute_reward(self, obs):
-        teapot_pos = self.teapot.get_pos()
-        goal_pos = self.mug.get_pos()
-        distance = torch.linalg.norm(teapot_pos - goal_pos, ord=2, dim=-1, keepdim=True)
-        reward = -distance.item() # TODO: implement reward function
-        done = reward > -0.1 and (teapot_pos[2].cpu().numpy().item() >= (MUG_POSITION[2] - 0.07)) and (goal_pos[2].cpu().numpy().item() >= (MUG_POSITION[2] - 0.07))
-        self.force_sparse = False
+        # Push the mug
+        mug_pos = self.mug.get_pos()
+        orig_pos = MUG_POSITION
+        distance = torch.linalg.norm(mug_pos - orig_pos, ord=2, dim=-1, keepdim=True)
+  
+        # reward for pushing farther away
+        if distance[0].item() > 0.2:
+            reward = distance.item() 
+        else:
+            reward = -1
+        
+        done = reward > -0.1 
         if done: 
             print(f"SUCCESS!")
             reward = 1.0
-        elif self.force_sparse:
-            reward = 0.0
 
-        return reward, done # TODO: implement reward function
+        return reward, done 
