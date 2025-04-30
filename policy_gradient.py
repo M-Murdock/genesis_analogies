@@ -23,13 +23,6 @@ class PolicyNetwork(nn.Module):
 
     def forward(self, state):
         x = F.relu(self.linear1(state))
-        # print("LINEAR1: ", self.linear1)
-        # print("Weight:", self.linear1.weight) 
-        # print("Bias:", self.linear1.bias) 
-        # print("Linear:", self.linear1(state))
-        # print("STATE:", state)
-        # print("X:", x) #TODO: fix situation where X = [nan, nan, nan, ...]. state has reasonable values, so problem must be elsewhere
-        # weights and bias have nan, so that may be where the issue originates
         mean = self.mean_layer(x)
         std = self.log_std.exp().expand_as(mean)  # convert log_std to std
         return mean, std
