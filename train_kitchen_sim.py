@@ -1,8 +1,10 @@
+# Trains a simple RL policy
+# Implements REINFORCE
+# Adapted from https://medium.com/@thechrisyoon/deriving-policy-gradients-and-implementing-reinforce-f887949bd63
+
 import numpy as np
 import torch
 from policy_gradient import PolicyNetwork
-# import matplotlib
-# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from kitchen_gym import KitchenGym
 
@@ -13,6 +15,7 @@ DEFAULT_RHO = 2000
 DEFAULT_FRICTION = 0.5
 DEFAULT_STARTING_X = 0.65 
 
+# Update Function
 def update_policy(policy_network, rewards, log_probs):
     GAMMA = 0.9
     discounted_rewards = []
@@ -26,9 +29,7 @@ def update_policy(policy_network, rewards, log_probs):
         discounted_rewards.append(Gt)
         
     discounted_rewards = torch.tensor(discounted_rewards)
-    # print("NON-NORMALIZED DISCOUNTED REWARDS: ", discounted_rewards)
     # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9) # normalize discounted rewards
-    # print("DISCOUNTED REWARDS: ", discounted_rewards)
     policy_gradient = []
     for log_prob, Gt in zip(log_probs, discounted_rewards):
         policy_gradient.append(-log_prob * Gt)
@@ -57,54 +58,68 @@ if __name__ == '__main__':
     ACTION_DIM = env.action_space.shape[0]
     STATE_DIM = env.observation_space["state"].shape[0]
 
+    # create NN for training policy
     policy_net = PolicyNetwork(STATE_DIM, ACTION_DIM, 128)
     
     if args.vis: env.render(use_imshow=True)
     
     max_episode_num = 5000
-    max_steps = 10000
+    max_steps = 500
     numsteps = []
     avg_numsteps = []
     all_rewards = []
+    PATH="kitchen_model.pt"
 
+    
     for episode in range(max_episode_num):
-        
-        # print("Episode ", episode)
+        env.cam_0.start_recording()
+
+
+        print("Episode ", episode)
+        # reset the state
         state = env.reset()["state"]
         log_probs = []
         rewards = []
 
+        # walk through each step
         for steps in range(max_steps):
-            print(env.mug.get_pos())
+            print("Step ", steps)
             
-            print(env.mug.get_pos()[1]) # if the mug falls off the table, end the episode
+            # if the mug falls off the table, end the episode
             if env.mug.get_pos()[1] < -0.23:
                 break
-
+            
+            # get next action, state 
             action, log_prob = policy_net.get_action(state)
-
             new_state, reward, done, _ = env.step(action)
             log_probs.append(log_prob)
             rewards.append(reward)
-            
 
-            # print("REWARD:", rewards) # TODO: the reward looks normal here, so why is it weird in the 'done' loop???
+            # if task is successfully completed
             if done:
+                # save successful task execution as a video
+                # SAVE_FILENAME = 'kitchen_task_recording' + '.mp4'
+                # env.cam_0.stop_recording(save_to_filename='kitchen_task_recording.mp4', fps=60)
+                env.cam_0.stop_recording(fps=60)
+
                 update_policy(policy_net, rewards, log_probs)
                 numsteps.append(steps)
                 avg_numsteps.append(np.mean(numsteps[-10:]))
                 all_rewards.append(np.sum(rewards)) # TODO: the total reward is always 1.0. Why???
+                print("ALL REWARDS:", all_rewards)
                 if episode % 1 == 0:
                     print("episode: {}, total reward: {}, average_reward: {}, length: {}\n".format(episode, np.round(np.sum(rewards), decimals = 3),  np.round(np.mean(all_rewards[-10:]), decimals = 3), steps))
                 break
+        
             
             state = new_state["state"]
-            
-    # plt.plot(numsteps)
-    # plt.plot(avg_numsteps)
-    # plt.xlabel('Episode')
-    # plt.show()
 
+        # env.cam_0.stop_recording(save_to_filename='scrap.mp4', fps=60)
+
+        # Save the model (https://pytorch.org/tutorials/beginner/saving_loading_models.html)
+        torch.save(policy_net, PATH)
+
+          
 
     # action structure:
     # action:  {'action': array([ 0.41947876, -1.5054056 ,  1.70436717, -1.3545354 ,  1.62811608,-1.63153025,  0.50537103])}
