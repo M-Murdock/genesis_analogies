@@ -1,5 +1,5 @@
 # Adapted from https://medium.com/@thechrisyoon/deriving-policy-gradients-and-implementing-reinforce-f887949bd63
-
+import matplotlib.pyplot as plt
 from genesis_gym import GenesisGym
 import numpy as np
 import random
@@ -31,6 +31,7 @@ class KitchenGym(GenesisGym):
     """
     def __init__(self, args={}, size=(96, 96), use_truncated_in_return=False):
         super().__init__(args)
+        self.successes = []
 
     def init_env(self):
         self.kp = kp = 5
@@ -110,7 +111,7 @@ class KitchenGym(GenesisGym):
 
         self.kdofs_idx = kdofs_idx = [kinova.get_joint(name).dof_idx_local for name in kinova_joint_names]
         eef = kinova.get_link(kinova_eef_name)
-        print(f"Kinova end effector: {eef}")
+        # print(f"Kinova end effector: {eef}")
         scene.build()
 
         ############ Optional: set control gains ############
@@ -149,20 +150,33 @@ class KitchenGym(GenesisGym):
         return ret
 
     def compute_reward(self, obs):
+        # go to point
+        # goal_pos = MUG_POSITION
+        # distance = torch.linalg.norm(mug_pos - orig_pos, ord=2, dim=-1, keepdim=True)
         # Push the mug
-        mug_pos = self.mug.get_pos()
-        orig_pos = MUG_POSITION
-        distance = torch.linalg.norm(mug_pos - orig_pos, ord=2, dim=-1, keepdim=True)
+        # print(self.kinova.get_link("end_effector_link").get_pos())
+        gripper_pos = self.kinova.get_link("end_effector_link").get_pos()
+        distance = torch.linalg.norm(gripper_pos - MUG_POSITION, ord=2, dim=-1, keepdim=True)
+        reward=-distance[0].item()
+        # print(reward)
+        # mug_pos = self.mug.get_pos()
+        # orig_pos = MUG_POSITION
+        # distance = torch.linalg.norm(mug_pos - orig_pos, ord=2, dim=-1, keepdim=True)
   
+        # # reward for pushing farther away
+        # if distance[0].item() > 0.2:
+        #     reward = distance.item() 
+        # else:
+        #     reward = -1
         # reward for pushing farther away
-        if distance[0].item() > 0.2:
-            reward = distance.item() 
-        else:
-            reward = -1
         
-        done = reward > -0.1 
+        
+        done = reward > -0.2
         if done: 
-            print(f"SUCCESS!")
+            self.successes.append(1)
+            print(f"SUCCESS #", sum(self.successes))
             reward = 1.0
+        else: 
+            self.successes.append(0)
 
         return reward, done 

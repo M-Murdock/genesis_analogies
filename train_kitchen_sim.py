@@ -64,7 +64,7 @@ if __name__ == '__main__':
     if args.vis: env.render(use_imshow=True)
     
     max_episode_num = 5000
-    max_steps = 500
+    max_steps = 1000
     numsteps = []
     avg_numsteps = []
     all_rewards = []
@@ -83,7 +83,7 @@ if __name__ == '__main__':
 
         # walk through each step
         for steps in range(max_steps):
-            print("Step ", steps)
+            # print("Step ", steps)
             
             # if the mug falls off the table, end the episode
             if env.mug.get_pos()[1] < -0.23:
@@ -101,6 +101,7 @@ if __name__ == '__main__':
                 # SAVE_FILENAME = 'kitchen_task_recording' + '.mp4'
                 # env.cam_0.stop_recording(save_to_filename='kitchen_task_recording.mp4', fps=60)
                 env.cam_0.stop_recording(fps=60)
+                env.cam_0.start_recording()
 
                 update_policy(policy_net, rewards, log_probs)
                 numsteps.append(steps)
@@ -114,12 +115,17 @@ if __name__ == '__main__':
             
             state = new_state["state"]
 
-        # env.cam_0.stop_recording(save_to_filename='scrap.mp4', fps=60)
+        env.cam_0.stop_recording(save_to_filename='scrap.mp4', fps=60)
 
         # Save the model (https://pytorch.org/tutorials/beginner/saving_loading_models.html)
         torch.save(policy_net, PATH)
 
-          
+    y = env.successes
+    x = [sim for sim in range(0, y)]
+    plt.plot(x, y, marker='o', linestyle='-')
+
+    # Display the graph
+    plt.show()     
 
     # action structure:
     # action:  {'action': array([ 0.41947876, -1.5054056 ,  1.70436717, -1.3545354 ,  1.62811608,-1.63153025,  0.50537103])}
